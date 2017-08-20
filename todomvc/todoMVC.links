@@ -2,10 +2,21 @@ open VirtualDom
 open Tags
 open Attrs
 open Events
+open Subscriptions
 
 typename Entry = (description : String, completed : Bool, editing : Bool, id : Int);
 typename Model = (entries : [Entry], field : String, uid : Int, visibility : String);
-typename Msg = [| NoOp | UpdateField : String | EditingEntry : (Int,Bool) | UpdateEntry : (Int,String) | Add | Delete : Int | DeleteComplete | Check : (Int,Bool) | CheckAll : Bool | ChangeVisibility : String |];
+typename Msg =
+    [| NoOp 
+     | UpdateField : String 
+     | EditingEntry : (Int,Bool) 
+     | UpdateEntry : (Int,String) 
+     | Add 
+     | Delete : Int 
+     | DeleteComplete 
+     | Check : (Int,Bool) 
+     | CheckAll : Bool 
+     | ChangeVisibility : String |];
 
 fun getKeycode(f) {
   StringHandler("keycode", f)
@@ -251,9 +262,9 @@ fun view(model) {
 }
 
 
-fun mainPage(_, _) {
+fun mainPage(_) {
   var initialModel = (entries = [], field = "", uid = 0, visibility = "All");
-  var evtHandler = runVDom("placeholder", view, updt, initialModel);
+  var evtHandler = runVDom("placeholder", view, updt, initialModel, Subscriptions.noSubscriptions());
   page
   <html>
     <head>

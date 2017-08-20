@@ -2,18 +2,13 @@ open Tags
 open Attrs
 open Events
 open VirtualDom
+open Subscriptions
 
 typename Model = (keyPressed : String);
 typename Msg = [| KeyPressed : String |];
 
-fun getKeyCode(f) {
-  StringHandler("keypress", f)
-}
-
-fun keyCodeHandler() {
-  getKeyCode(fun(keycode) {
+fun keyCodeHandler(keycode) {
     KeyPressed(keycode)
-  })
 }
 
 sig updt : (Msg, Model) ~%e~> Model
@@ -27,14 +22,17 @@ fun updt(msg, model) {
 sig view : (Model) ~%e~> Doc(Msg)
 fun view(model) {
     div ([id ("testdiv"), style ("width:100%;height:100%")],[],
-    [textDoc("Key pressed: "),textDoc(model.keyPressed)])
+    [textDoc("Key last pressed: "),textDoc(model.keyPressed)])
 }
 
+fun subscriptions(_) {
+    [getKeyDownCode(keyCodeHandler)]
+}
 
-fun mainPage(_, _) {
+fun mainPage(_) {
   var initialModel = (keyPressed = "None");
-  var subscriptions = [keyCodeHandler()];
-  var evtHandler = runVDom("placeholder", view, updt, initialModel, subscriptions);
+  var evtHandler =
+    runVDom("placeholder", view, updt, initialModel, subscriptions);
   page
   <html>
     <head>

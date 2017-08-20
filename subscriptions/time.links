@@ -1,6 +1,7 @@
 open Tags
 open Attrs
 open Events
+open Subscriptions
 open VirtualDom
 
 typename Model = (seconds : Int, minutes : Int, paused: Bool);
@@ -25,7 +26,7 @@ fun secondsHandler() {
 }
 
 fun shortcutHandler() {
-  getKeyCode(fun(keycode) {
+  getKeyDownCode(fun(keycode) {
     if (keycode == "80") {
       TogglePause
     } else if (keycode == "82") {
@@ -98,7 +99,7 @@ fun subscriptions(model) {
 }
 
 
-fun mainPage(_, _) {
+fun mainPage(_) {
   var initialModel = (seconds = 0, minutes = 0, paused = true);
   var evtHandler = runVDom("placeholder", view, updt, initialModel, subscriptions);
   page
