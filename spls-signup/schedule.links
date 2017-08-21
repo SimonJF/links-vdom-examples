@@ -253,8 +253,10 @@ fun renderRow(model, row) {
                    tdata([
                       input(
                         [("placeholder", "Enter your name"),
-                         ("id", "newEntryBox"), value(model.name_value)],
-                        [changeNameHandler()], [])]), 
+                         ("id", "newEntryBox"), 
+                         attr("defaultValue", model.name_value),
+                         attr("autofocus", "autofocus")],
+                        [changeNameHandler(), enterHandler(FinishEditRow)], [])]), 
                    tdata([checkbox(row.row_can_make_event,
                      canMakeEventHandler())]),
                    tdata([checkbox(row.row_can_make_dinner,
@@ -273,8 +275,8 @@ fun newEntryRow(model) {
                 tdata([
                     input(
                         [("placeholder", "Enter your name"),
-                         ("id", "newEntryBox"), value(model.name_value)],
-                        [changeNameHandler()], [])]),
+                         ("id", "newEntryBox"), attr("defaultValue", model.name_value)],
+                        [changeNameHandler(), enterHandler(Submit)], [])]),
                 tdata([
                     checkbox(model.can_make_event, canMakeEventHandler())
                 ]),
@@ -291,7 +293,7 @@ fun renderTable(model) {
     var headerRow =
         trow([
                 thead(textDoc("Name")),
-                thead(textDoc("Can you make SPLS?")),
+                thead(textDoc("Can you make it to SPLS?")),
                 thead(textDoc("Dinner?"))
             ]);
     var renderedRows = map(fun (r) { renderRow(model, r) }, model.rows);
