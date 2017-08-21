@@ -148,11 +148,15 @@ fun updt(msg, model) {
                     fresh_model (updated_rows)
             }
         case Submit ->
-            showSubmittedState(model);
-            var new_row = addRow(model.name_value, model.can_make_event,
-                model.can_make_dinner);
-            print("new ID: " ^^ (intToString(new_row.row_join_id)));
-            fresh_model (model.rows ++ [new_row])
+            if (not(model.name_value == "")) {
+                showSubmittedState(model);
+                var new_row = addRow(model.name_value, model.can_make_event,
+                    model.can_make_dinner);
+                print("new ID: " ^^ (intToString(new_row.row_join_id)));
+                fresh_model (model.rows ++ [new_row])
+            } else {
+                model
+            }
     }
 }
 
