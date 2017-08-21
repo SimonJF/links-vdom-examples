@@ -361,7 +361,7 @@ fun mainPage() {
 }
 
 fun main() {
-    addRoute("/", fun(_) { mainPage() });
+    addRoute("/spls", fun(_) { mainPage() });
     servePages()
 }
 
