@@ -257,6 +257,7 @@ fun renderRow(model, row) {
         case ExistingEntry(id) ->
             if (row.row_join_id == id) {
                 trow([
+                   tdata([]),
                    tdata([
                       input(
                         [("placeholder", "Enter your name"),
@@ -300,6 +301,7 @@ fun newEntryRow(model) {
 fun renderTable(model) {
     var headerRow =
         trow([
+                th([], [], []),
                 thead(textDoc("Name")),
                 thead(textDoc("Can you make it to SPLS?")),
                 thead(textDoc("Dinner?"))
