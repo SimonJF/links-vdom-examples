@@ -9,7 +9,7 @@ open VirtualDom
 var db = database "links_scheduler";
 var join_data= table "join_data" with
     (join_id: Int, person_name: String,
-    can_make_event: Bool, can_make_dinner: Bool) 
+    can_make_event: Bool, can_make_dinner: Bool)
     where join_id readonly from db;
 
 
@@ -33,7 +33,7 @@ fun addRow(name, can_make_event, can_make_dinner) server {
             [(person_name = name, can_make_event = can_make_event,
                 can_make_dinner = can_make_dinner)] returning join_id;
     newRow(new_id, name, can_make_event, can_make_dinner)
-    
+
 }
 
 fun deleteRow(id) server {
@@ -117,7 +117,7 @@ typename Msg =
 fun updt(msg, model) {
     switch (msg) {
         case NoOp -> model
-        case UpdateName(s) -> 
+        case UpdateName(s) ->
             (model with name_value = s)
         case ToggleCanMakeEvent ->
             (model with can_make_event = (not(model.can_make_event)))
@@ -174,7 +174,7 @@ fun getKeycode(f) {
 }
 
 fun enterHandler(msg) {
-  getKeycode(fun(keycode) { 
+  getKeycode(fun(keycode) {
     if (keycode == "13") {
       msg
     } else {
@@ -226,30 +226,33 @@ fun tdata(children) {
 
 fun icon(b) {
     if (b) {
-        i([class("fa fa-check fa-lg"), ("aria-hidden", "true")], [], [])    
+        i([class("fa fa-check fa-lg"), ("aria-hidden", "true")], [], [])
     } else {
         i([class("fa fa-times fa-lg"), ("aria-hidden", "true")], [], [])
     }
+}
+
+fun modificationIcons(row) {
+  tdata([
+    a([], [onClick(fun () { EditRow(row.row_join_id) })], [
+      i([class("fa fa-pencil fa-lg"), ("style", "color: #222; padding: 5px 5px 5px 5px"), ("aria-hidden", "true")], [], [])
+    ]),
+    a([], [onClick(fun () { DeleteRow(row.row_join_id) })], [
+      i([class("fa fa-trash fa-lg"), ("style", "color: #222; padding: 5px 5px 5px 5px"), ("aria-hidden", "true")], [], [])
+    ])])
 }
 
 
 fun renderRow(model, row) {
     var viewRow =
         trow([
-           tdata([
-               a([], [onClick(fun () { EditRow(row.row_join_id) })], [
-                 i([class("fa fa-pencil fa-lg"), ("style", "color: #222; padding: 5px 5px 5px 5px"), ("aria-hidden", "true")], [], [])
-               ]),
-               a([], [onClick(fun () { DeleteRow(row.row_join_id) })], [
-                 i([class("fa fa-trash fa-lg"), ("style", "color: #222; padding: 5px 5px 5px 5px"), ("aria-hidden", "true")], [], [])
-               ]), 
-               textDoc (row.row_person_name)
-               ]),
+           modificationIcons(row),
+           tdata([textDoc (row.row_person_name)]),
            tdata([icon(row.row_can_make_event)]),
            tdata([icon(row.row_can_make_dinner)])
         ]);
 
-    switch(model.edit_state) { 
+    switch(model.edit_state) {
         case NewEntry -> viewRow
         case ExistingEntry(id) ->
             if (row.row_join_id == id) {
@@ -257,10 +260,10 @@ fun renderRow(model, row) {
                    tdata([
                       input(
                         [("placeholder", "Enter your name"),
-                         ("id", "newEntryBox"), 
+                         ("id", "newEntryBox"),
                          attr("defaultValue", model.name_value),
                          attr("autofocus", "autofocus")],
-                        [changeNameHandler(), enterHandler(FinishEditRow)], [])]), 
+                        [changeNameHandler(), enterHandler(FinishEditRow)], [])]),
                    tdata([checkbox(row.row_can_make_event,
                      canMakeEventHandler())]),
                    tdata([checkbox(row.row_can_make_dinner,
@@ -276,6 +279,7 @@ fun newEntryRow(model) {
     switch(model.edit_state) {
         case NewEntry -> [
             trow([
+                tdata([]),
                 tdata([
                     input(
                         [("placeholder", "Enter your name"),
@@ -353,7 +357,7 @@ fun mainPage() {
     <body>
     <div class="container">
         <div class="head">
-          <h1>SPLS Registration</h1>    
+          <h1>SPLS Registration</h1>
         </div>
         <div class="content">
             <div id="placeholder">
