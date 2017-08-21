@@ -1,0 +1,366 @@
+open Attrs
+open Events
+open Subscriptions
+open Tags
+open VirtualDom
+
+# DB
+## Database Setup
+var db = database "links_scheduler";
+var join_data= table "join_data" with
+    (join_id: Int, person_name: String,
+    can_make_event: Bool, can_make_dinner: Bool) 
+    where join_id readonly from db;
+
+
+# Model
+typename Row =
+    ( row_join_id: Int,
+      row_person_name: String,
+      row_can_make_event: Bool,
+      row_can_make_dinner: Bool);
+
+fun newRow(id, name, event, dinner) {
+    ( row_join_id = id,
+      row_person_name = name,
+      row_can_make_event = event,
+      row_can_make_dinner = dinner)
+}
+
+fun addRow(name, can_make_event, can_make_dinner) server {
+    var new_id =
+        insert join_data values
+            [(person_name = name, can_make_event = can_make_event,
+                can_make_dinner = can_make_dinner)] returning join_id;
+    newRow(new_id, name, can_make_event, can_make_dinner)
+    
+}
+
+fun deleteRow(id) server {
+    delete (r <-- join_data) where (r.join_id == id)
+}
+
+fun getRows() server {
+    reverse(
+        for (r <-- join_data)
+            orderby (r.join_id) [
+            newRow(r.join_id, r.person_name, r.can_make_event,
+                r.can_make_dinner)
+        ])
+}
+
+typename EditState = [| NewEntry | ExistingEntry: Int |];
+
+typename Model =
+    ( rows: [Row], # Rows of people in the table
+      edit_state: EditState, # Editor state -- new, or existing?
+      name_value: String, # Value of the text box
+      can_make_event: Bool, # "can make event" ticked
+      can_make_dinner: Bool); # "can make dinner" ticked
+
+fun fresh_model(rows) {
+    (rows = rows,
+     edit_state = NewEntry,
+     name_value = "",
+     can_make_event = false,
+     can_make_dinner = false)
+}
+
+fun filterRows(remove_id, model) {
+    (model with rows =
+        filter(fun (r) { not(r.row_join_id == remove_id) }, model.rows))
+}
+
+
+fun getRowById(id, rows) {
+    var filtered_rows = filter(fun(r) { r.row_join_id == id }, rows);
+    switch (filtered_rows) {
+        case [] -> Nothing
+        case x::xs -> Just(x)
+    }
+}
+
+fun updateRowInDB(row) server {
+  update (r <-- join_data)
+    where (r.join_id == row.row_join_id)
+    set (person_name = row.row_person_name,
+         can_make_event = row.row_can_make_event,
+         can_make_dinner = row.row_can_make_dinner)
+}
+
+fun updateRow(row, rows) {
+    switch (rows) {
+        case [] -> [row]
+        case r::rs ->
+            if (r.row_join_id == row.row_join_id) {
+                row :: rs
+            } else {
+                r :: updateRow(row, rs)
+            }
+    }
+}
+
+# Update
+
+## Messages
+typename Msg =
+    [| UpdateName: String # Change name text box
+     | UpdateCanMakeEvent: Bool # Tick / untick "can make event" checkbox
+     | UpdateCanMakeDinner: Bool # Tick / untick "can make dinner" cb
+     | EditRow: Int # Edit an existing row
+     | DeleteRow: Int # Delete an existing row
+     | FinishEditRow # Finish editing an existing row
+     | Submit
+     | NoOp |]; # Submit
+
+## Update Function
+fun updt(msg, model) {
+    switch (msg) {
+        case NoOp -> model
+        case UpdateName(s) -> 
+            (model with name_value = s)
+        case ToggleCanMakeEvent ->
+            (model with can_make_event = (not(model.can_make_event)))
+        case ToggleCanMakeDinner ->
+            (model with can_make_dinner = (not(model.can_make_dinner)))
+        case EditRow(i) ->
+            switch (getRowById(i, model.rows)) {
+                case Just(row) ->
+                    (model with edit_state = ExistingEntry(i),
+                                name_value = row.row_person_name,
+                                can_make_event = row.row_can_make_event,
+                                can_make_dinner = row.row_can_make_dinner)
+                case Nothing ->
+                    print("oops -- invalid ID?"); model
+            }
+        case DeleteRow(i) ->
+            deleteRow(i);
+            filterRows(i, model)
+        case FinishEditRow ->
+            switch (model.edit_state) {
+                case NewEntry -> print("trying to update a new row!?"); model
+                case ExistingEntry(i) ->
+                    var new_row =
+                        newRow(i, model.name_value,
+                            model.can_make_event, model.can_make_dinner);
+                    updateRowInDB(new_row);
+                    var updated_rows = updateRow(new_row, model.rows);
+                    fresh_model (updated_rows)
+            }
+        case Submit ->
+            showSubmittedState(model);
+            var new_row = addRow(model.name_value, model.can_make_event,
+                model.can_make_dinner);
+            print("new ID: " ^^ (intToString(new_row.row_join_id)));
+            fresh_model (model.rows ++ [new_row])
+    }
+}
+
+fun isEditing(model, id) {
+    switch(model.edit_state) {
+        case NewEntry -> false
+        case ExistingEntry(i) -> i == id
+    }
+}
+
+
+### YUCK -- need to put these in the library somewhere
+fun getKeycode(f) {
+  StringHandler("keycode", f)
+}
+
+fun enterHandler(msg) {
+  getKeycode(fun(keycode) { 
+    if (keycode == "13") {
+      msg
+    } else {
+      NoOp
+    }
+  })
+}
+### end yuck
+
+
+fun canMakeEventHandler() {
+  onClick(fun() { ToggleCanMakeEvent })
+}
+
+fun canMakeDinnerHandler() {
+  onClick(fun() { ToggleCanMakeDinner })
+}
+
+fun changeNameHandler() {
+    onInput(fun(s) { UpdateName(s) } )
+}
+
+# View
+
+fun showSubmittedState(model) {
+    fun boolToStr(b) { if(b) { "true" } else { "false" } }
+    var msg =
+        "Name: " ^^ model.name_value ^^
+        ", spls: " ^^ boolToStr(model.can_make_event) ^^
+        ", dinner: " ^^ boolToStr(model.can_make_dinner);
+    print(msg)
+}
+
+fun checkbox(is_checked, hndlr) {
+    input([type("checkbox"), class("toggle"), checked(is_checked)], [hndlr], [])
+}
+
+fun trow(children) {
+    tr([], [], children)
+}
+
+fun thead(child) {
+    th([], [], [child])
+}
+
+fun tdata(children) {
+    td([], [], children)
+}
+
+fun icon(b) {
+    if (b) {
+        i([class("fa fa-check fa-lg"), ("aria-hidden", "true")], [], [])    
+    } else {
+        i([class("fa fa-times fa-lg"), ("aria-hidden", "true")], [], [])
+    }
+}
+
+
+fun renderRow(model, row) {
+    var viewRow =
+        trow([
+           tdata([
+               a([], [onClick(fun () { EditRow(row.row_join_id) })], [
+                 i([class("fa fa-pencil fa-lg"), ("style", "color: #222; padding: 5px 5px 5px 5px"), ("aria-hidden", "true")], [], [])
+               ]),
+               a([], [onClick(fun () { DeleteRow(row.row_join_id) })], [
+                 i([class("fa fa-trash fa-lg"), ("style", "color: #222; padding: 5px 5px 5px 5px"), ("aria-hidden", "true")], [], [])
+               ]), 
+               textDoc (row.row_person_name)
+               ]),
+           tdata([icon(row.row_can_make_event)]),
+           tdata([icon(row.row_can_make_dinner)])
+        ]);
+
+    switch(model.edit_state) { 
+        case NewEntry -> viewRow
+        case ExistingEntry(id) ->
+            if (row.row_join_id == id) {
+                trow([
+                   tdata([
+                      input(
+                        [("placeholder", "Enter your name"),
+                         ("id", "newEntryBox"), value(model.name_value)],
+                        [changeNameHandler()], [])]), 
+                   tdata([checkbox(row.row_can_make_event,
+                     canMakeEventHandler())]),
+                   tdata([checkbox(row.row_can_make_dinner,
+                     canMakeDinnerHandler())])
+                ])
+            } else {
+                viewRow
+            }
+    }
+}
+
+fun newEntryRow(model) {
+    switch(model.edit_state) {
+        case NewEntry -> [
+            trow([
+                tdata([
+                    input(
+                        [("placeholder", "Enter your name"),
+                         ("id", "newEntryBox"), value(model.name_value)],
+                        [changeNameHandler()], [])]),
+                tdata([
+                    checkbox(model.can_make_event, canMakeEventHandler())
+                ]),
+                tdata([
+                    checkbox(model.can_make_dinner, canMakeDinnerHandler())
+                ])
+            ])
+        ]
+        case ExistingEntry(_) -> []
+    }
+}
+
+fun renderTable(model) {
+    var headerRow =
+        trow([
+                thead(textDoc("Name")),
+                thead(textDoc("Can you make SPLS?")),
+                thead(textDoc("Dinner?"))
+            ]);
+    var renderedRows = map(fun (r) { renderRow(model, r) }, model.rows);
+    var rows = headerRow :: (renderedRows ++ newEntryRow(model));
+
+    div([class("row")], [], [
+        table_([class("table table-striped table-bordered")], [],
+            [tbody([], [], rows)]
+        )
+    ])
+}
+
+fun renderSubmit(model) {
+    var btn =
+        switch(model.edit_state) {
+            case NewEntry ->
+                button(
+                    [class("btn btn-primary btn-lg")],
+                    [ onClick(fun() { Submit } )],
+                    [textDoc("Submit")])
+            case ExistingEntry(id) ->
+                button(
+                    [class("btn btn-primary btn-lg")],
+                    [ onClick(fun() { FinishEditRow } ) ],
+                    [textDoc("Update")])
+        };
+    div([], [], [btn])
+}
+
+fun render(model) {
+    div([], [], [
+        renderTable(model),
+        renderSubmit(model)
+    ])
+}
+
+
+# Skeleton main page
+fun mainPage() {
+    var rows = getRows();
+    var initial_model = fresh_model(rows);
+    var _ = runVDom("placeholder", render, updt, initial_model, Subscriptions.noSubscriptions());
+    page
+    <html>
+    <head>
+      <title>SPLS Registration</title>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" />
+       <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap-theme.min.css" />
+       <script src="https://use.fontawesome.com/417ca429dd.js"></script>
+    </head>
+    <body>
+    <div class="container">
+        <div class="head">
+          <h1>SPLS Registration</h1>    
+        </div>
+        <div class="content">
+            <div id="placeholder">
+            </div>
+        </div>
+    </div>
+    </body>
+    </html>
+}
+
+fun main() {
+    addRoute("/", fun(_) { mainPage() });
+    servePages()
+}
+
+main()
